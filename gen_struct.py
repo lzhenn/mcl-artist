@@ -2,13 +2,15 @@ import os
 import json
 
 def scan(dir_path="", base=""):
+    black_lst=['.git']
     result = {"name": os.path.basename(dir_path) or "MCL_ARTIST", "path": dir_path}
     entries = []
     images = []
     for entry in os.listdir(dir_path or "."):
         full = os.path.join(dir_path or ".", entry)
         if os.path.isdir(full):
-            entries.append(scan(full, base))
+            if not entry in black_lst:
+                entries.append(scan(full, base))
         elif entry.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
             images.append(entry)
     if images:
