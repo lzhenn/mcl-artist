@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MercuriusLite - Artist</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.min.css">
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --card: #1a1a2e;
+            --accent: #00d4ff;
+            --text: #e0e0ff;
+            --text-light: #a0a0cc;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+            background-image:
+                radial-gradient(circle at 20% 80%, rgba(0,212,255,0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0,212,255,0.1) 0%, transparent 50%);
+        }
+        h1 {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 3rem;
+            background: linear-gradient(90deg, #00d4ff, #7b5eff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .breadcrumb {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--text-light);
+            font-size: 1.1rem;
+        }
+        .breadcrumb a { color: var(--accent); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+
+        .folder-tree {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+        .folder {
+            margin: 0.5rem 0;
+        }
+        .folder-name {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .folder-name:hover { background: rgba(0,212,255,0.1); }
+        .folder-name::before {
+            content: "📁";
+            margin-right: 8px;
+        }
+        .folder-name.is-gallery {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .folder-name.is-gallery::before { content: "🖼️"; }
+        .children {
+            margin-left: 2rem;
+            border-left: 2px solid rgba(0,212,255,0.2);
+            padding-left: 1rem;
+            display: none;
+        }
+        .children.open { display: block; }
+
+        /* 图片画廊 */
+        .gallery {
+            display: none;
+            max-width: 1400px;
+            margin: 2rem auto;
+            column-count: 4;
+            column-gap: 1rem;
+        }
+        .gallery.show { display: block; }
+        .gallery-item {
+            break-inside: avoid;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+        .gallery-item:hover { transform: scale(1.03); }
+        .gallery-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        @media (max-width: 1200px) { .gallery { column-count: 3; } }
+        @media (max-width: 800px)  { .gallery { column-count: 2; } }
+        @media (max-width: 500px)  { .gallery { column-count: 1; } }
+
+        /* PhotoSwipe 根元素 */
+        .pswp-gallery { display: none; }
+    </style>
+</head>
+<body>
+    <h1>MercuriusLite Artist</h1>
+    <div class="breadcrumb" id="breadcrumb">MCL_ARTIST</div>
+    <div class="folder-tree" id="tree"></div>
+
+    <div class="gallery" id="gallery"></div>
+
+    <!-- PhotoSwipe 所需结构（隐藏） -->
+    <div class="pswp-gallery" id="pswp-gallery"></div>
+    
+    <script src="structure.js"></script>
+    <script>
+        const treeEl = document.getElementById('tree');
+        const galleryEl = document.getElementById('gallery');
+        const breadcrumbEl = document.getElementById('breadcrumb');
+
+        function buildTree(node, parentEl, currentPath = []) {
+            const div = document.createElement('div');
+            div.className = 'folder';
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'folder-name';
+            if (node.images && node.images.length > 0) {
+                nameEl.className += ' is-gallery';
+            }
+            nameEl.textContent = node.name;
+
+            const childrenEl = document.createElement('div');
+            childrenEl.className = 'children';
+
+            // 点击展开/收起子目录 或 打开相册
+            nameEl.onclick = (e) => {
+                e.stopPropagation();
+                if (node.images && node.images.length > 0) {
+                    showGallery(node, currentPath.concat(node.name));
+                } else if (node.children && node.children.length > 0) {
+                    childrenEl.classList.toggle('open');
+                    updateBreadcrumb(currentPath.concat(node.name));
+                }
+            };
+
+            div.appendChild(nameEl);
+            div.appendChild(childrenEl);
+            parentEl.appendChild(div);
+
+            if (node.children) {
+                node.children.forEach(child => {
+                    buildTree(child, childrenEl, currentPath.concat(node.name));
+                });
+            }
+        }
+
+        function updateBreadcrumb(pathArray) {
+            breadcrumbEl.innerHTML = '根目录';
+            if (pathArray.length === 0) return;
+            let fullPath = '';
+            pathArray.forEach((p, i) => {
+                fullPath += (i === 0 ? p : '/' + p);
+                const a = document.createElement('a');
+                a.href = 'javascript:void(0)';
+                a.textContent = ' > ' + p;
+                a.onclick = () => showFolderByPath(fullPath.split('/').slice(0, i+1));
+                breadcrumbEl.appendChild(a);
+            });
+        }
+
+        function showFolderByPath(pathParts) {
+            // 这里简单粗暴地刷新页面并用 hash 记录路径（实际可用更优雅的方式）
+            location.hash = '#' + pathParts.join('/');
+        }
+
+        function showGallery(node, pathArray) {
+            galleryEl.innerHTML = '';
+            galleryEl.classList.add('show');
+            treeEl.style.display = 'none';
+            updateBreadcrumb(pathArray);
+
+            const basePath = node.path || pathArray.slice(0, -1).join('/');
+
+            node.images.forEach(img => {
+                const fullSrc = (basePath ? basePath + '/' : '') + img;
+
+                const item = document.createElement('div');
+                item.className = 'gallery-item';
+
+                const a = document.createElement('a');
+                a.href = fullSrc;
+                a.setAttribute('data-pswp-width', 0);  // 实际尺寸稍后动态获取
+                a.setAttribute('data-pswp-height', 0);
+                a.target = '_blank';
+
+                const imgEl = new Image();
+                imgEl.onload = function() {
+                    a.setAttribute('data-pswp-width', this.width);
+                    a.setAttribute('data-pswp-height', this.height);
+                };
+                imgEl.src = fullSrc;
+
+                a.appendChild(imgEl);
+                item.appendChild(a);
+                galleryEl.appendChild(item);
+            });
+
+            // 初始化 PhotoSwipe
+            setTimeout(initPhotoSwipe, 500);
+        }
+
+        function initPhotoSwipe() {
+            const items = Array.from(galleryEl.querySelectorAll('a')).map(a => ({
+                src: a.href,
+                w: parseInt(a.dataset.pswpWidth) || 1200,
+                h: parseInt(a.dataset.pswpHeight) || 800
+            }));
+
+            const pswpElement = document.querySelector('.pswp-gallery');
+            const gallery = new PhotoSwipe({
+                gallery: pswpElement,
+                dataSource: items,
+                pswpModule: () => import('https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.esm.js')
+            });
+            gallery.init();
+        }
+
+        // 返回根目录
+        document.getElementById('breadcrumb').onclick = () => {
+            location.hash = '';
+            location.reload();
+        };
+
+        // 初始化
+	document.addEventListener('DOMContentLoaded', () => {
+            if (typeof directoryStructure === 'undefined') {
+                treeEl.innerHTML = '<p style="color:#ff0066;text-align:center;">加载目录结构失败，请检查 structure.js 是否存在</p>';
+                return;
+            }
+            buildTree(directoryStructure, treeEl);
+        });
+    </script>
+
+    <script type="module">
+        import PhotoSwipe from 'https://cdn.jsdelivr.net/npm/photoswipe@5.4.4/dist/photoswipe.esm.js';
+        window.PhotoSwipe = PhotoSwipe;
+    </script>
+</body>
+</html>
